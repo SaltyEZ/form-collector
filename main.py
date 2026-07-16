@@ -1,25 +1,20 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
+from dependencies import tasks_db, get_next_id
 import uvicorn
-from schemas import Task
+from schemas import STaskUpdate, Task
 
 app = FastAPI()
 
-tasks_db = {}
-cur_counter = 1
 
-
-@app.post("/tasks")
-def create_task(task: Task) -> dict:
-    global cur_counter
-    cur_id = cur_counter
-    cur_counter += 1
+@app.post("/tasks", status_code=status.HTTP_200_OK)
+def create_task(task: Task, next_id: str = Depends(get_next_id)) -> dict:
     new_task = {
-        "id": cur_id,
+        "id": next_id,
         "title": task.title,
         "description": task.description,
         "completed": task.completed,
     }
-    tasks_db[cur_id] = new_task
+    tasks_db[next_id] = new_task
     return new_task
 
 
@@ -32,30 +27,29 @@ def get_tasks():
 def get_task(id: int):
     task = tasks_db.get(id)
     if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
     return task
 
 
-@app.delete("/tasks/{id}")
+@app.delete("/tasks/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(id: int):
     task = tasks_db.pop(id, None)
     if task is not None:
         return {"message": f"task №{id} has been deleted"}
-    raise HTTPException(status_code=404, detail="Task not found")
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
 
-@app.put("/tasks/{id}")
-def update_task(id: int, task: Task):
+@app.patch("/tasks/{id}", status_code=status.HTTP_200_OK)
+def update_task(id: int, task: STaskUpdate):
     if id not in tasks_db:
-        raise HTTPException(status_code=404, detail="Task not found")
-    updated_task = {
-        "id": id,
-        "title": task.title,
-        "description": task.description,
-        "completed": task.completed,
-    }
-    tasks_db[id] = updated_task
-    return updated_task
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+    updated_task = task.model_dump(exclude_unset=True)
+    tasks_db[id].update(updated_task)
+    return tasks_db[id]
 
 
 if __name__ == "__main__":
