@@ -11,3 +11,6 @@ _counter = _set_next_id()
 
 def get_next_id():
     return next(_counter)
+
+
+# создать функцию get_task_by_id
